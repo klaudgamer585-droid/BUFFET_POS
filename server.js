@@ -1,15 +1,36 @@
 const express = require('express');
-const { randomUUID } = require('crypto');
+const { createHash, randomBytes, randomUUID, timingSafeEqual } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const mysql = require('mysql2/promise');
+
+function loadLocalEnvironment() {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || match[1] in process.env) continue;
+    let value = match[2];
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[match[1]] = value;
+  }
+}
+
+loadLocalEnvironment();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const databaseName = process.env.DB_NAME || 'buffet_pos';
 const legacyDatabasePath = path.join(__dirname, 'data', 'buffet-pos.sqlite');
 let salesDatabase;
+const adminSessions = new Map();
+const adminLoginAttempts = new Map();
+const adminSessionCookie = 'platera_admin_session';
+const adminSessionDurationMs = 30 * 60 * 1000;
+const adminLoginBlockDurationMs = 60 * 1000;
 
 function readLegacySales() {
   if (!fs.existsSync(legacyDatabasePath)) return [];
@@ -1122,6 +1143,299 @@ app.delete('/api/dish-costs/:id', async (req, res) => {
   } catch (error) {
     console.error('Could not delete dish cost from MariaDB:', error);
     res.status(500).json({ message: 'Could not delete the dish cost.' });
+  }
+});
+
+function getAdminSessionToken(req) {
+  const cookies = String(req.headers.cookie || '').split(';');
+  const sessionCookie = cookies.map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(`${adminSessionCookie}=`));
+  return sessionCookie ? sessionCookie.slice(adminSessionCookie.length + 1) : '';
+}
+
+function requireAdminSession(req, res, next) {
+  res.setHeader('Cache-Control', 'no-store');
+  const token = getAdminSessionToken(req);
+  const session = adminSessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) adminSessions.delete(token);
+    return res.status(401).json({ message: 'Admin sign-in is required.' });
+  }
+  next();
+}
+
+function adminPasswordMatches(candidate, configuredPassword) {
+  const candidateHash = createHash('sha256').update(candidate).digest();
+  const configuredHash = createHash('sha256').update(configuredPassword).digest();
+  return timingSafeEqual(candidateHash, configuredHash);
+}
+
+function validDatabaseAdminTable(table) {
+  return ['sales', 'dish-costs', 'dishes'].includes(table);
+}
+
+function validDatabaseAdminId(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 80;
+}
+
+function parseAdminAmount(value, label) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 9999999999.99) {
+    throw new Error(`${label} must be between 0 and 9,999,999,999.99.`);
+  }
+  return Number(value.toFixed(2));
+}
+
+function parseAdminDate(value, label) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required.`);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`${label} must be a valid date and time.`);
+  return date.toISOString();
+}
+
+app.get('/api/admin/session', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const configuredUsername = process.env.ADMIN_USERNAME || 'admin';
+  const configuredPassword = process.env.ADMIN_PASSWORD || '';
+  const token = getAdminSessionToken(req);
+  const session = adminSessions.get(token);
+  const authenticated = Boolean(session && session.expiresAt > Date.now());
+  if (session && !authenticated) adminSessions.delete(token);
+  res.json({
+    username: configuredUsername,
+    configured: configuredUsername.length > 0 && configuredPassword.length >= 12,
+    authenticated
+  });
+});
+
+app.post('/api/admin/login', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const configuredUsername = process.env.ADMIN_USERNAME || 'admin';
+  const configuredPassword = process.env.ADMIN_PASSWORD || '';
+  if (configuredPassword.length < 12) {
+    return res.status(503).json({ message: 'Set ADMIN_PASSWORD to a value of at least 12 characters before using database administration.' });
+  }
+  const username = req.body?.username;
+  const password = req.body?.password;
+  if (typeof username !== 'string' || username.length > 128 || typeof password !== 'string' || password.length > 1024) {
+    return res.status(400).json({ message: 'Enter the admin username and password.' });
+  }
+
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const attempt = adminLoginAttempts.get(ip) || { failures: 0, blockedUntil: 0 };
+  const now = Date.now();
+  if (attempt.blockedUntil > now) {
+    return res.status(429).json({ message: 'Too many failed sign-in attempts. Try again in 1 minute.' });
+  }
+  if (attempt.blockedUntil > 0) {
+    attempt.failures = 0;
+    attempt.blockedUntil = 0;
+  }
+  const usernameMatches = adminPasswordMatches(username, configuredUsername);
+  const passwordMatches = adminPasswordMatches(password, configuredPassword);
+  if (!usernameMatches || !passwordMatches) {
+    attempt.failures += 1;
+    if (attempt.failures >= 5) attempt.blockedUntil = now + adminLoginBlockDurationMs;
+    adminLoginAttempts.set(ip, attempt);
+    return res.status(attempt.blockedUntil ? 429 : 401).json({
+      message: attempt.blockedUntil ? 'Too many failed sign-in attempts. Try again in 1 minute.' : 'The admin username or password is incorrect.'
+    });
+  }
+
+  adminLoginAttempts.delete(ip);
+  const token = randomBytes(32).toString('hex');
+  for (const [sessionToken, session] of adminSessions) {
+    if (session.expiresAt <= Date.now()) adminSessions.delete(sessionToken);
+  }
+  adminSessions.set(token, { expiresAt: Date.now() + adminSessionDurationMs });
+  const secureCookie = req.secure ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${adminSessionCookie}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=1800${secureCookie}`);
+  res.json({ authenticated: true });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  adminSessions.delete(getAdminSessionToken(req));
+  res.setHeader('Set-Cookie', `${adminSessionCookie}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+  res.json({ authenticated: false });
+});
+
+app.get('/api/admin/records/:table', requireAdminSession, async (req, res) => {
+  const { table } = req.params;
+  if (!validDatabaseAdminTable(table)) return res.status(404).json({ message: 'Database table not found.' });
+  const search = String(req.query.search || '').trim();
+  const page = Number(req.query.page || 1);
+  const pageSize = 25;
+  if (search.length > 100) return res.status(400).json({ message: 'Search must be 100 characters or fewer.' });
+  if (!Number.isInteger(page) || page < 1) return res.status(400).json({ message: 'Page must be a positive whole number.' });
+
+  let whereSql = '';
+  let values = [];
+  if (search) {
+    const pattern = `%${search}%`;
+    if (table === 'sales') {
+      whereSql = 'WHERE sale_id LIKE ? OR table_id LIKE ? OR payment_method LIKE ?';
+      values = [pattern, pattern, pattern];
+    } else {
+      whereSql = 'WHERE dish_name LIKE ?';
+      values = [pattern];
+    }
+  }
+  const tables = {
+    sales: {
+      sqlName: 'sales',
+      orderBy: 'created_at DESC, sale_id DESC',
+      columns: `sale_id AS id, created_at AS createdAt, source, payment_method AS paymentMethod,
+        guest_count AS guestCount, subtotal, discount_amount AS discountAmount,
+        service_charge AS serviceCharge, tax_amount AS taxAmount, total`
+    },
+    'dish-costs': {
+      sqlName: 'dish_cost_entries',
+      orderBy: 'business_date DESC, created_at DESC, entry_id DESC',
+      columns: `entry_id AS id, DATE_FORMAT(business_date, '%Y-%m-%d') AS businessDate,
+        dish_name AS dish, total_cost AS totalCost, created_at AS createdAt`
+    },
+    dishes: {
+      sqlName: 'dish_catalog',
+      orderBy: 'dish_name ASC',
+      columns: `dish_id AS id, dish_name AS dish, default_cost AS defaultCost, updated_at AS updatedAt`
+    }
+  }[table];
+
+  try {
+    const [countRows] = await salesDatabase.execute(`SELECT COUNT(*) AS totalCount FROM ${tables.sqlName} ${whereSql}`, values);
+    const offset = (page - 1) * pageSize;
+    const [rows] = await salesDatabase.execute(
+      `SELECT ${tables.columns} FROM ${tables.sqlName} ${whereSql} ORDER BY ${tables.orderBy} LIMIT ? OFFSET ?`,
+      [...values, pageSize, offset]
+    );
+    const totalCount = Number(countRows[0].totalCount);
+    res.json({ records: rows, page, pageSize, totalCount, totalPages: Math.ceil(totalCount / pageSize) });
+  } catch (error) {
+    console.error(`Could not read ${table} for database administration:`, error);
+    res.status(500).json({ message: 'Could not load database records.' });
+  }
+});
+
+app.put('/api/admin/records/:table/:id', requireAdminSession, async (req, res) => {
+  const { table, id } = req.params;
+  if (!validDatabaseAdminTable(table)) return res.status(404).json({ message: 'Database table not found.' });
+  if (!validDatabaseAdminId(id)) return res.status(400).json({ message: 'Record ID is invalid.' });
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ message: 'Provide the fields to update.' });
+  }
+
+  try {
+    if (table === 'sales') {
+      const paymentMethod = String(req.body.paymentMethod || '');
+      if (!['cash', 'card', 'mobile'].includes(paymentMethod)) {
+        return res.status(400).json({ message: 'Payment method must be cash, card, or mobile wallet.' });
+      }
+      let createdAt;
+      let total;
+      try {
+        createdAt = parseAdminDate(req.body.createdAt, 'Sale date');
+        total = parseAdminAmount(req.body.total, 'Sale total');
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+      const [rows] = await salesDatabase.execute(`
+        SELECT subtotal, service_charge AS serviceCharge, tax_amount AS taxAmount, order_json
+        FROM sales
+        WHERE sale_id = ?
+      `, [id]);
+      if (!rows.length) return res.status(404).json({ message: 'Sale not found.' });
+      const sale = rows[0];
+      const subtotalCents = Math.round(Number(sale.subtotal) * 100);
+      const totalCents = Math.round(total * 100);
+      const baseCents = Math.round((Number(sale.subtotal) + Number(sale.serviceCharge) + Number(sale.taxAmount)) * 100);
+      const discountCents = baseCents - totalCents;
+      if (discountCents < 0 || discountCents > subtotalCents) {
+        return res.status(400).json({ message: 'Sale total must be between the service and tax charges and the pre-discount total.' });
+      }
+      const discountAmount = Number((discountCents / 100).toFixed(2));
+      let order;
+      try {
+        order = JSON.parse(sale.order_json);
+      } catch {
+        console.error(`Could not parse stored order JSON for sale ${id}.`);
+        return res.status(500).json({ message: 'This sale has invalid stored details and cannot be edited.' });
+      }
+      order.createdAt = createdAt;
+      order.paymentMethod = paymentMethod;
+      order.discountAmount = discountAmount;
+      order.total = total;
+      await salesDatabase.execute(`
+        UPDATE sales
+        SET created_at = ?, payment_method = ?, discount_amount = ?, total = ?, order_json = ?
+        WHERE sale_id = ?
+      `, [createdAt, paymentMethod, discountAmount, total, JSON.stringify(order), id]);
+      return res.json({ id, createdAt, paymentMethod, discountAmount, total });
+    }
+
+    const dish = typeof req.body.dish === 'string' ? req.body.dish.trim() : '';
+    if (!dish || dish.length > 80) return res.status(400).json({ message: 'Dish name must be between 1 and 80 characters.' });
+    const amountField = table === 'dish-costs' ? 'totalCost' : 'defaultCost';
+    const amountLabel = table === 'dish-costs' ? 'Dish cost' : 'Default cost';
+    let amount;
+    try {
+      amount = parseAdminAmount(req.body[amountField], amountLabel);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    if (table === 'dish-costs') {
+      const businessDate = String(req.body.businessDate || '');
+      try {
+        getSalesDateFilter(businessDate, businessDate, 0);
+      } catch (error) {
+        return res.status(400).json({ message: `Choose a valid business date. ${error.message}` });
+      }
+      const [result] = await salesDatabase.execute(`
+        UPDATE dish_cost_entries
+        SET business_date = ?, dish_name = ?, total_cost = ?
+        WHERE entry_id = ?
+      `, [businessDate, dish, amount, id]);
+      if (!result.affectedRows) {
+        const [existing] = await salesDatabase.execute('SELECT entry_id FROM dish_cost_entries WHERE entry_id = ?', [id]);
+        if (!existing.length) return res.status(404).json({ message: 'Dish-cost entry not found.' });
+      }
+      return res.json({ id, businessDate, dish, totalCost: amount });
+    }
+
+    const updatedAt = new Date().toISOString();
+    const [result] = await salesDatabase.execute(`
+      UPDATE dish_catalog
+      SET dish_name = ?, default_cost = ?, updated_at = ?
+      WHERE dish_id = ?
+    `, [dish, amount, updatedAt, id]);
+    if (!result.affectedRows) {
+      const [existing] = await salesDatabase.execute('SELECT dish_id FROM dish_catalog WHERE dish_id = ?', [id]);
+      if (!existing.length) return res.status(404).json({ message: 'Saved dish not found.' });
+    }
+    return res.json({ id, dish, defaultCost: amount, updatedAt });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'A saved dish with that name already exists.' });
+    console.error(`Could not update ${table} record ${id}:`, error);
+    res.status(500).json({ message: 'Could not update the database record.' });
+  }
+});
+
+app.delete('/api/admin/records/:table/:id', requireAdminSession, async (req, res) => {
+  const { table, id } = req.params;
+  if (!validDatabaseAdminTable(table)) return res.status(404).json({ message: 'Database table not found.' });
+  if (!validDatabaseAdminId(id)) return res.status(400).json({ message: 'Record ID is invalid.' });
+  const primaryKeys = {
+    sales: ['sales', 'sale_id'],
+    'dish-costs': ['dish_cost_entries', 'entry_id'],
+    dishes: ['dish_catalog', 'dish_id']
+  };
+  const [tableName, key] = primaryKeys[table];
+  try {
+    const [result] = await salesDatabase.execute(`DELETE FROM ${tableName} WHERE ${key} = ?`, [id]);
+    if (!result.affectedRows) return res.status(404).json({ message: 'Database record not found.' });
+    res.json({ deleted: true });
+  } catch (error) {
+    console.error(`Could not delete ${table} record ${id}:`, error);
+    res.status(500).json({ message: 'Could not delete the database record.' });
   }
 });
 

@@ -6,7 +6,13 @@ const state = {
   lastReceipt: null,
   salesPage: 1,
   salesTotalPages: 0,
-  salesRows: []
+  salesRows: [],
+  databaseTable: 'sales',
+  databasePage: 1,
+  databaseTotalPages: 0,
+  databaseRecords: [],
+  databaseSearch: '',
+  databaseAuthenticated: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -76,6 +82,239 @@ async function loadSales(page = 1) {
     renderSalesRows();
   } catch (error) {
     $('#salesResultsStatus').textContent = 'Could not load sales.';
+    notify(error.message, true);
+  }
+}
+
+function setDatabaseAdminAccess(authenticated) {
+  state.databaseAuthenticated = authenticated;
+  $('#databaseLoginPanel').classList.toggle('hidden', authenticated);
+  $('#databaseAdminPanel').classList.toggle('hidden', !authenticated);
+  $('#databaseLogoutButton').classList.toggle('hidden', !authenticated);
+  $('#refreshDatabaseButton').classList.toggle('hidden', !authenticated);
+  if (authenticated) loadDatabaseRecords(1);
+}
+
+async function openDatabaseAdmin() {
+  const loginForm = $('#databaseLoginForm');
+  loginForm.classList.add('hidden');
+  $('#databaseLoginMessage').textContent = 'Checking admin access…';
+  $('#databaseLoginMessage').classList.remove('error-text');
+  setDatabaseAdminAccess(false);
+  try {
+    const session = await api('/api/admin/session');
+    if (!session.configured) {
+      $('#databaseLoginMessage').textContent = 'Database admin is disabled. Set ADMIN_PASSWORD to a password of at least 12 characters, then restart the server.';
+      return;
+    }
+    if (session.authenticated) {
+      setDatabaseAdminAccess(true);
+      return;
+    }
+    $('#databaseLoginMessage').textContent = 'Sign in with the admin password configured for this server.';
+    $('#databaseAdminUsername').value = session.username || 'admin';
+    loginForm.classList.remove('hidden');
+  } catch (error) {
+    $('#databaseLoginMessage').textContent = error.message;
+    $('#databaseLoginMessage').classList.add('error-text');
+  }
+}
+
+async function loadDatabaseRecords(page = 1) {
+  const table = state.databaseTable;
+  const query = new URLSearchParams({
+    page: String(page),
+    search: state.databaseSearch
+  });
+  $('#databaseRecordsStatus').textContent = 'Loading database records…';
+  $('#databasePreviousButton').disabled = true;
+  $('#databaseNextButton').disabled = true;
+  try {
+    const result = await api(`/api/admin/records/${table}?${query}`);
+    if (result.totalPages && page > result.totalPages) return loadDatabaseRecords(result.totalPages);
+    state.databaseRecords = result.records;
+    state.databasePage = result.page;
+    state.databaseTotalPages = result.totalPages;
+    renderDatabaseRecords();
+    $('#databaseRecordsStatus').textContent = `${result.totalCount.toLocaleString()} ${databaseRecordLabel(table)}${result.totalCount === 1 ? '' : 's'}${state.databaseSearch ? ' matching the search' : ''}`;
+    $('#databasePageLabel').textContent = `Page ${result.totalPages ? result.page : 0} of ${result.totalPages}`;
+    $('#databasePreviousButton').disabled = result.page <= 1;
+    $('#databaseNextButton').disabled = result.page >= result.totalPages;
+  } catch (error) {
+    $('#databaseRecordsStatus').textContent = 'Could not load database records.';
+    handleExpiredDatabaseSession(error);
+    notify(error.message, true);
+  }
+}
+
+function databaseRecordLabel(table) {
+  return { sales: 'sale', 'dish-costs': 'dish-cost entry', dishes: 'saved dish' }[table] || 'record';
+}
+
+function handleExpiredDatabaseSession(error) {
+  if (error.message !== 'Admin sign-in is required.') return false;
+  setDatabaseAdminAccess(false);
+  $('#databaseLoginMessage').textContent = 'Your admin session expired. Sign in again.';
+  $('#databaseLoginForm').classList.remove('hidden');
+  return true;
+}
+
+function renderDatabaseRecords() {
+  const table = state.databaseTable;
+  const headings = {
+    sales: ['Date & time', 'Receipt', 'Type', 'Guests', 'Payment', 'Total', 'Actions'],
+    'dish-costs': ['Business date', 'Dish', 'Total cost', 'Actions'],
+    dishes: ['Dish', 'Default cost', 'Last updated', 'Actions']
+  }[table];
+  $('#databaseRecordsHead').innerHTML = `<tr>${headings.map((heading) => `<th scope="col">${heading}</th>`).join('')}</tr>`;
+  const body = $('#databaseRecordsBody');
+  if (!state.databaseRecords.length) {
+    body.innerHTML = `<tr><td class="sales-empty" colspan="${headings.length}">No ${databaseRecordLabel(table)}s found.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = state.databaseRecords.map((record) => {
+    const actions = `<div class="database-actions">
+      <button class="button subtle" type="button" data-database-edit="${escapeHtml(record.id)}">Edit</button>
+      <button class="button subtle database-delete-button" type="button" data-database-delete="${escapeHtml(record.id)}">Delete</button>
+    </div>`;
+    if (table === 'sales') {
+      const date = new Date(record.createdAt);
+      const dateLabel = Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
+      return `<tr>
+        <td>${escapeHtml(dateLabel)}</td>
+        <td class="sale-id-cell">${escapeHtml(record.id)}</td>
+        <td>${record.source === 'menu' ? 'Menu' : 'Buffet'}</td>
+        <td>${Number(record.guestCount) || 0}</td>
+        <td>${escapeHtml(record.paymentMethod || '—')}</td>
+        <td class="sale-total-cell">${money(record.total)}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }
+    if (table === 'dish-costs') {
+      return `<tr>
+        <td>${escapeHtml(record.businessDate)}</td>
+        <td class="sale-id-cell">${escapeHtml(record.dish)}</td>
+        <td class="sale-total-cell">${money(record.totalCost)}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }
+    const date = new Date(record.updatedAt);
+    const dateLabel = Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+    return `<tr>
+      <td class="sale-id-cell">${escapeHtml(record.dish)}</td>
+      <td class="sale-total-cell">${money(record.defaultCost)}</td>
+      <td>${escapeHtml(dateLabel)}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+
+  body.querySelectorAll('[data-database-edit]').forEach((button) => {
+    button.addEventListener('click', () => openDatabaseRecordEditor(button.dataset.databaseEdit));
+  });
+  body.querySelectorAll('[data-database-delete]').forEach((button) => {
+    button.addEventListener('click', () => deleteDatabaseRecord(button.dataset.databaseDelete));
+  });
+}
+
+function localDateTimeValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function openDatabaseRecordEditor(id) {
+  const record = state.databaseRecords.find((entry) => entry.id === id);
+  if (!record) return;
+  const table = state.databaseTable;
+  const form = $('#databaseRecordForm');
+  $('#databaseRecordTitle').textContent = `Edit ${databaseRecordLabel(table)}`;
+  form.dataset.recordId = record.id;
+
+  if (table === 'sales') {
+    form.innerHTML = `
+      <label>Sale date and time<input name="createdAt" type="datetime-local" value="${escapeHtml(localDateTimeValue(record.createdAt))}" required /></label>
+      <label>Payment method<select name="paymentMethod" required>
+        <option value="cash" ${record.paymentMethod === 'cash' ? 'selected' : ''}>Cash</option>
+        <option value="card" ${record.paymentMethod === 'card' ? 'selected' : ''}>Card</option>
+        <option value="mobile" ${record.paymentMethod === 'mobile' ? 'selected' : ''}>Mobile wallet</option>
+      </select></label>
+      <label>Corrected total<input name="total" type="number" min="0" max="9999999999.99" step="0.01" value="${escapeHtml(record.total)}" required /></label>
+      <p class="database-record-help">The stored discount is adjusted so the receipt's subtotal, service charge, tax, and corrected total remain consistent.</p>
+      <p class="database-form-error" role="status" aria-live="polite"></p>
+      <div class="database-form-actions"><button class="button subtle" type="button" data-close-database-record>Cancel</button><button class="button primary" type="submit">Save changes</button></div>`;
+  } else if (table === 'dish-costs') {
+    form.innerHTML = `
+      <label>Business date<input name="businessDate" type="date" value="${escapeHtml(record.businessDate)}" required /></label>
+      <label>Dish name<input name="dish" type="text" maxlength="80" value="${escapeHtml(record.dish)}" required /></label>
+      <label>Total cost<span class="money-input"><b>₱</b><input name="totalCost" type="number" min="0" max="9999999999.99" step="0.01" value="${escapeHtml(record.totalCost)}" required /></span></label>
+      <p class="database-form-error" role="status" aria-live="polite"></p>
+      <div class="database-form-actions"><button class="button subtle" type="button" data-close-database-record>Cancel</button><button class="button primary" type="submit">Save changes</button></div>`;
+  } else {
+    form.innerHTML = `
+      <label>Dish name<input name="dish" type="text" maxlength="80" value="${escapeHtml(record.dish)}" required /></label>
+      <label>Default cost<span class="money-input"><b>₱</b><input name="defaultCost" type="number" min="0" max="9999999999.99" step="0.01" value="${escapeHtml(record.defaultCost)}" required /></span></label>
+      <p class="database-form-error" role="status" aria-live="polite"></p>
+      <div class="database-form-actions"><button class="button subtle" type="button" data-close-database-record>Cancel</button><button class="button primary" type="submit">Save changes</button></div>`;
+  }
+  form.querySelector('[data-close-database-record]').addEventListener('click', () => $('#databaseRecordDialog').close());
+  $('#databaseRecordDialog').showModal();
+}
+
+async function saveDatabaseRecord(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  const payload = {};
+  if (state.databaseTable === 'sales') {
+    const dateValue = String(values.get('createdAt') || '');
+    const saleDate = new Date(dateValue);
+    if (!dateValue || Number.isNaN(saleDate.getTime())) {
+      form.querySelector('.database-form-error').textContent = 'Enter a valid sale date and time.';
+      return;
+    }
+    payload.createdAt = saleDate.toISOString();
+    payload.paymentMethod = String(values.get('paymentMethod') || '');
+    payload.total = Number(values.get('total'));
+  } else if (state.databaseTable === 'dish-costs') {
+    payload.businessDate = String(values.get('businessDate') || '');
+    payload.dish = String(values.get('dish') || '').trim();
+    payload.totalCost = Number(values.get('totalCost'));
+  } else {
+    payload.dish = String(values.get('dish') || '').trim();
+    payload.defaultCost = Number(values.get('defaultCost'));
+  }
+  const error = form.querySelector('.database-form-error');
+  error.textContent = '';
+  try {
+    await api(`/api/admin/records/${state.databaseTable}/${encodeURIComponent(form.dataset.recordId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+    $('#databaseRecordDialog').close();
+    notify(`${databaseRecordLabel(state.databaseTable)} updated.`);
+    await loadDatabaseRecords(state.databasePage);
+    await refreshSalesSummary();
+  } catch (saveError) {
+    handleExpiredDatabaseSession(saveError);
+    error.textContent = saveError.message;
+  }
+}
+
+async function deleteDatabaseRecord(id) {
+  const record = state.databaseRecords.find((entry) => entry.id === id);
+  if (!record) return;
+  const label = state.databaseTable === 'sales'
+    ? `sale ${record.id} for ${money(record.total)}`
+    : `${databaseRecordLabel(state.databaseTable)} "${record.dish}"`;
+  if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
+  try {
+    await api(`/api/admin/records/${state.databaseTable}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    notify(`${databaseRecordLabel(state.databaseTable)} deleted.`);
+    await loadDatabaseRecords(state.databasePage);
+    await refreshSalesSummary();
+  } catch (error) {
+    handleExpiredDatabaseSession(error);
     notify(error.message, true);
   }
 }
@@ -561,6 +800,7 @@ function setView(view) {
   document.querySelectorAll('.view').forEach((element) => element.classList.toggle('active', element.id === `${view}View`));
   document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   if (view === 'sales') loadSales(1);
+  if (view === 'database') openDatabaseAdmin();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -646,6 +886,55 @@ function bindEvents() {
   $('#salesPreviousButton').addEventListener('click', () => loadSales(Math.max(1, state.salesPage - 1)));
   $('#salesNextButton').addEventListener('click', () => loadSales(Math.min(state.salesTotalPages, state.salesPage + 1)));
   $('#closeSaleDetailButton').addEventListener('click', () => $('#saleDetailDialog').close());
+  $('#databaseLoginForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const username = String(values.get('username') || '').trim();
+    const password = String(values.get('password') || '');
+    const message = $('#databaseLoginMessage');
+    message.textContent = 'Signing in…';
+    message.classList.remove('error-text');
+    try {
+      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+      form.reset();
+      message.textContent = '';
+      setDatabaseAdminAccess(true);
+    } catch (error) {
+      message.textContent = error.message;
+      message.classList.add('error-text');
+    }
+  });
+  $('#databaseLogoutButton').addEventListener('click', async () => {
+    try {
+      await api('/api/admin/logout', { method: 'POST' });
+      setDatabaseAdminAccess(false);
+      $('#databaseLoginMessage').textContent = 'You have signed out.';
+      $('#databaseLoginForm').classList.remove('hidden');
+    } catch (error) {
+      notify(error.message, true);
+    }
+  });
+  $('#refreshDatabaseButton').addEventListener('click', () => loadDatabaseRecords(state.databasePage || 1));
+  document.querySelectorAll('[data-admin-table]').forEach((button) => button.addEventListener('click', () => {
+    state.databaseTable = button.dataset.adminTable;
+    state.databasePage = 1;
+    document.querySelectorAll('[data-admin-table]').forEach((tab) => {
+      const selected = tab === button;
+      tab.classList.toggle('active', selected);
+      tab.setAttribute('aria-selected', String(selected));
+    });
+    loadDatabaseRecords(1);
+  }));
+  $('#databaseSearchForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    state.databaseSearch = String(new FormData(event.currentTarget).get('search') || '').trim();
+    loadDatabaseRecords(1);
+  });
+  $('#databasePreviousButton').addEventListener('click', () => loadDatabaseRecords(Math.max(1, state.databasePage - 1)));
+  $('#databaseNextButton').addEventListener('click', () => loadDatabaseRecords(Math.min(state.databaseTotalPages, state.databasePage + 1)));
+  $('#databaseRecordForm').addEventListener('submit', saveDatabaseRecord);
+  $('#closeDatabaseRecordButton').addEventListener('click', () => $('#databaseRecordDialog').close());
   document.querySelectorAll('[data-dismiss]').forEach((element) => element.addEventListener('click', () => closeModal(element.dataset.dismiss)));
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') document.querySelectorAll('.modal:not(.hidden)').forEach((modal) => closeModal(modal.id));

@@ -63,22 +63,19 @@ Legacy menu, recipe, discount, and item-order endpoints remain available for the
 ## Run locally with XAMPP MariaDB
 
 1. In the XAMPP Control Panel, start **MySQL** (MariaDB). The default connection is `127.0.0.1:3306`, user `root`, no password, and database `buffet_pos`.
-2. If your XAMPP credentials differ, set these environment variables before starting the POS server: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME`. For PowerShell, for example:
+2. Copy `.env.example` to `.env`. Set `ADMIN_USERNAME` (defaults to `admin`) and replace `ADMIN_PASSWORD` with a strong, unique password of at least 12 characters. Update the database settings in `.env` if your XAMPP credentials differ. The `.env` file is loaded on startup and ignored by Git.
 
    ```powershell
-   $env:DB_HOST = "127.0.0.1"
-   $env:DB_PORT = "3306"
-   $env:DB_NAME = "buffet_pos"
-   $env:DB_USER = "root"
-   $env:DB_PASSWORD = ""
+   Copy-Item .env.example .env
+   # Edit .env and replace ADMIN_PASSWORD before starting the server.
    npm.cmd install
    npm.cmd start
    ```
 
 3. The server creates the configured database, `sales`, `dish_cost_entries`, and `dish_catalog` tables automatically; the configured MariaDB user needs permission to create the database and tables.
 4. On startup, existing sales in `data/buffet-pos.sqlite` are copied into MariaDB using sale IDs to prevent duplicate imports. The SQLite file is retained as a backup.
-5. Open `http://localhost:3000`. To inspect the `buffet_pos` database, open `http://localhost/phpmyadmin` and select it.
+5. Open `http://localhost:3000` and select **Admin database**. Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` to search, edit, and delete completed sales, daily dish-cost entries, and saved dishes. Five failed sign-in attempts trigger a one-minute cooldown. The admin session expires after 30 minutes. Sale total corrections adjust the stored discount so receipt totals remain consistent; deletions are permanent.
 
 ## Production hardening
 
-Sales and dated dish-cost entries are persisted in MariaDB through `mysql2`; the prior SQLite database is read at startup and imported idempotently by sale ID, without being modified or deleted. Keep a backup of the SQLite file until the imported data is verified in phpMyAdmin. The runtime requires Node.js 22.13 or newer. This remains a single-process prototype: tables, active parties, plate events, pricing, promos, and menu are still held in memory and reset on restart. Before production, persist those operational settings, enforce role-based authorization for manager actions, use an auditable append-only plate/order ledger, add idempotency and concurrency controls to check-in/checkout, define jurisdiction-specific tax and discount policy, and add automated API/UI tests and monitoring.
+Sales and dated dish-cost entries are persisted in MariaDB through `mysql2`; the prior SQLite database is read at startup and imported idempotently by sale ID, without being modified or deleted. Keep a backup of the SQLite file until imported data is verified. The runtime requires Node.js 22.13 or newer. The database-admin screen is password protected, but the prototype does not yet provide full user accounts or role-based authorization for the rest of the POS; keep it on a trusted network. Tables, active parties, plate events, pricing, promos, and menu are held in memory and reset on restart. Before production, persist those operational settings, enforce role-based authorization across manager actions, use an auditable append-only plate/order ledger, add idempotency and concurrency controls to check-in/checkout, define jurisdiction-specific tax and discount policy, and add automated API/UI tests and monitoring.

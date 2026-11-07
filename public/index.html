@@ -22,6 +22,7 @@
           <button class="nav-tab active" data-view="service" type="button">Service floor</button>
           <button class="nav-tab" data-view="sales" type="button">Sales &amp; Database</button>
           <button class="nav-tab" data-view="manager" type="button">Manager</button>
+          <button class="nav-tab" data-view="database" type="button">Admin database</button>
           <a class="inventory-link" href="/inventory.html">Dish cost inventory <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
@@ -147,6 +148,57 @@
             <div class="sales-pagination"><button id="salesPreviousButton" class="button subtle" type="button" disabled>← Previous</button><span id="salesPageLabel">Page 0 of 0</span><button id="salesNextButton" class="button subtle" type="button" disabled>Next →</button></div>
           </section>
         </section>
+
+        <section id="databaseView" class="view" aria-labelledby="databaseTitle">
+          <div class="page-intro">
+            <div><p class="eyebrow">Protected admin tools</p><h1 id="databaseTitle">Database administration</h1></div>
+            <div class="database-header-actions">
+              <button id="refreshDatabaseButton" class="button subtle hidden" type="button">↻ Refresh records</button>
+              <button id="databaseLogoutButton" class="button subtle hidden" type="button">Sign out</button>
+            </div>
+          </div>
+          <section id="databaseLoginPanel" class="panel database-login-panel" aria-labelledby="databaseLoginTitle">
+            <p class="eyebrow">Admin sign-in</p>
+            <h2 id="databaseLoginTitle">Sign in to manage records</h2>
+            <p id="databaseLoginMessage" class="database-help" role="status" aria-live="polite">Checking admin access…</p>
+            <form id="databaseLoginForm" class="database-login-form hidden">
+              <label class="field-label" for="databaseAdminUsername">Admin name
+                <input id="databaseAdminUsername" name="username" type="text" autocomplete="username" maxlength="128" required />
+              </label>
+              <label class="field-label" for="databaseAdminPassword">Admin password
+                <input id="databaseAdminPassword" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+              </label>
+              <button class="button primary" type="submit">Sign in</button>
+            </form>
+          </section>
+          <section id="databaseAdminPanel" class="panel database-admin-panel hidden" aria-label="Database records">
+            <div class="database-toolbar">
+              <div class="database-tabs" role="tablist" aria-label="Database tables">
+                <button class="database-tab active" type="button" data-admin-table="sales" role="tab" aria-selected="true">Completed sales</button>
+                <button class="database-tab" type="button" data-admin-table="dish-costs" role="tab" aria-selected="false">Dish-cost entries</button>
+                <button class="database-tab" type="button" data-admin-table="dishes" role="tab" aria-selected="false">Saved dishes</button>
+              </div>
+              <form id="databaseSearchForm" class="database-search-form">
+                <label class="visually-hidden" for="databaseSearch">Search records</label>
+                <input id="databaseSearch" name="search" type="search" maxlength="100" placeholder="Search current records" />
+                <button class="button subtle" type="submit">Search</button>
+              </form>
+            </div>
+            <p class="database-help">Sales corrections preserve the receipt total by adjusting its discount. Deleting a record permanently changes saved history and reports.</p>
+            <p id="databaseRecordsStatus" class="database-records-status" role="status" aria-live="polite"></p>
+            <div class="sales-table-wrap">
+              <table class="sales-table database-records-table">
+                <thead id="databaseRecordsHead"></thead>
+                <tbody id="databaseRecordsBody"></tbody>
+              </table>
+            </div>
+            <div class="sales-pagination">
+              <button id="databasePreviousButton" class="button subtle" type="button" disabled>← Previous</button>
+              <span id="databasePageLabel">Page 0 of 0</span>
+              <button id="databaseNextButton" class="button subtle" type="button" disabled>Next →</button>
+            </div>
+          </section>
+        </section>
       </main>
       <footer class="app-footer"><span>Gelo's Buffet and Events Place POS</span><span>Service state syncs with the local POS server</span><span id="connectionStatus"><i class="legend-dot available"></i> Connected</span></footer>
     </div>
@@ -157,6 +209,10 @@
 
     <div id="checkoutModal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle"><div class="modal-backdrop" data-dismiss="checkoutModal"></div><section class="modal-panel checkout-modal-panel"><div class="modal-title"><div><p class="eyebrow">Payment</p><h2 id="checkoutTitle">Review bill</h2></div><button class="icon-button" type="button" data-dismiss="checkoutModal" aria-label="Close checkout">×</button></div><div id="checkoutBreakdown" class="checkout-breakdown"></div><label class="field-label payment-field">Payment method<select id="paymentMethod"><option value="cash">Cash</option><option value="card">Card</option><option value="mobile">Mobile wallet</option></select></label><div class="checkout-actions"><button class="button subtle" type="button" data-dismiss="checkoutModal">Keep table open</button><button id="confirmCheckout" class="button primary" type="button">Complete payment</button></div></section></div>
     <dialog id="saleDetailDialog" class="sale-detail-dialog" aria-labelledby="saleDetailTitle"><div class="modal-title"><div><p class="eyebrow">Stored sale record</p><h2 id="saleDetailTitle">Sale details</h2></div><button id="closeSaleDetailButton" class="icon-button" type="button" aria-label="Close sale details">×</button></div><div id="saleDetailContent" class="sale-detail-content"></div></dialog>
+    <dialog id="databaseRecordDialog" class="sale-detail-dialog database-record-dialog" aria-labelledby="databaseRecordTitle">
+      <div class="modal-title"><div><p class="eyebrow">Database record</p><h2 id="databaseRecordTitle">Edit record</h2></div><button id="closeDatabaseRecordButton" class="icon-button" type="button" aria-label="Close record editor">×</button></div>
+      <form id="databaseRecordForm" class="database-record-form"></form>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="/app.js"></script>
   </body>

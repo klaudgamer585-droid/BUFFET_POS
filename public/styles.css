@@ -370,6 +370,43 @@ h3 { margin: 0; font-size: 13px; font-weight: 800; }
 .sale-detail-line { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; color: #65736d; font-size: 11px; }
 .sale-detail-line strong { color: var(--ink); white-space: nowrap; }
 .sale-detail-total { margin-top: 5px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--ink); font-weight: 800; }
+.database-header-actions { display: flex; gap: 8px; }
+.database-login-panel, .database-admin-panel { padding: 20px; }
+.database-login-panel { max-width: 520px; }
+.database-login-panel h2 { margin-bottom: 8px; }
+.database-help { margin: 8px 0 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.database-login-form { display: flex; align-items: end; gap: 10px; }
+.database-login-form .field-label { flex: 1; }
+.database-login-form input, .database-search-form input, .database-record-form input, .database-record-form select {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #dce5df;
+  border-radius: 4px;
+  color: var(--ink);
+  background: #fff;
+  font-size: 12px;
+}
+.database-login-form input { width: 100%; margin-top: 6px; }
+.database-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.database-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+.database-tab { min-height: 34px; padding: 0 11px; border: 1px solid transparent; border-radius: 5px; color: #64736d; background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
+.database-tab.active { border-color: #cfe0d6; color: var(--forest); background: var(--forest-soft); }
+.database-search-form { display: flex; gap: 7px; }
+.database-search-form input { width: min(250px, 30vw); }
+.database-search-form .button { min-height: 36px; }
+.database-records-status { min-height: 16px; margin: 13px 0 4px; color: var(--muted); font-size: 11px; }
+.database-records-table { min-width: 650px; }
+.database-records-table .database-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.database-records-table .database-actions .button { min-height: 29px; padding: 0 9px; font-size: 10px; }
+.database-delete-button { color: #9d4034 !important; border-color: #f0d1cb !important; background: #fff8f6 !important; }
+.database-delete-button:hover:not(:disabled) { background: #ffefea !important; }
+.database-record-form { display: grid; gap: 13px; margin-top: 17px; }
+.database-record-form label { display: flex; flex-direction: column; gap: 6px; color: #697771; font-size: 10px; font-weight: 700; }
+.database-record-form input, .database-record-form select { width: 100%; }
+.database-record-form .database-record-help { margin: -4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.database-record-form .database-form-error { min-height: 14px; margin: 0; color: #a44135; font-size: 11px; }
+.database-record-form .database-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (min-width: 1240px) {
   .party-workspace { grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); }
@@ -443,6 +480,10 @@ h3 { margin: 0; font-size: 13px; font-weight: 800; }
   .sales-table-heading { align-items: flex-start; flex-direction: column; }
   .sales-table { min-width: 740px; }
   .plate-modal-grid { grid-template-columns: 1fr; }
+  .database-toolbar { align-items: stretch; flex-direction: column; }
+  .database-search-form input { width: 100%; }
+  .database-search-form { width: 100%; }
+  .database-login-form { align-items: stretch; flex-direction: column; }
   .sale-detail-dialog { padding: 17px; }
   .app-footer > span:nth-child(2) { order: 3; width: 100%; }
   .modal-panel { padding: 17px; }
