@@ -1,6 +1,6 @@
-# Gelo's Buffet and Events Place POS
+# Platera POS
 
-A buffet service prototype for table check-in, plate capacity, live guest billing, and manager-maintained promotions. Completed buffet and legacy menu sales, earnings, and guest counts are stored in MariaDB. The Dish Cost Inventory records dated dish costs and compares the selected day's costs with completed sales earnings.
+Platera is a buffet point-of-sale system for table check-in, plate capacity, live guest billing, and manager-maintained promotions. Completed buffet and legacy menu sales, earnings, and guest counts are stored in MariaDB. The Dish Cost Inventory records dated dish costs and compares the selected day's costs with completed sales earnings.
 
 ## Functional requirements
 
