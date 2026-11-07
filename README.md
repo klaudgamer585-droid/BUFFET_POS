@@ -74,7 +74,7 @@ Legacy menu, recipe, discount, and item-order endpoints remain available for the
 
 3. The server creates the configured database, `sales`, `dish_cost_entries`, and `dish_catalog` tables automatically; the configured MariaDB user needs permission to create the database and tables.
 4. On startup, existing sales in `data/buffet-pos.sqlite` are copied into MariaDB using sale IDs to prevent duplicate imports. The SQLite file is retained as a backup.
-5. Open `http://localhost:3000` and select **Admin database**. Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` to search, edit, and delete completed sales, daily dish-cost entries, and saved dishes. Five failed sign-in attempts trigger a one-minute cooldown. The admin session expires after 30 minutes. Sale total corrections adjust the stored discount so receipt totals remain consistent; deletions are permanent.
+5. Open `http://localhost:3001` and select **Admin database**. Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` to search, edit, and delete completed sales, daily dish-cost entries, and saved dishes. Five failed sign-in attempts trigger a one-minute cooldown. The admin session expires after 30 minutes. Sale total corrections adjust the stored discount so receipt totals remain consistent; deletions are permanent.
 
 ## Production hardening
 

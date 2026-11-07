@@ -22,7 +22,7 @@ function loadLocalEnvironment() {
 loadLocalEnvironment();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const databaseName = process.env.DB_NAME || 'buffet_pos';
 const legacyDatabasePath = path.join(__dirname, 'data', 'buffet-pos.sqlite');
 let salesDatabase;
