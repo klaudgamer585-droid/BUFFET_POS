@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#173a35" />
+    <title>Dish Costs | Gelo's Buffet and Events Place</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="inventory-page-shell">
+      <header class="inventory-page-header">
+        <div>
+          <p class="eyebrow dark">Daily dish costs</p>
+          <h1>Dish Cost Inventory</h1>
+          <p class="inventory-intro">Record dish costs by day and compare them with completed sales for the same date.</p>
+        </div>
+        <div class="inventory-header-actions">
+          <a href="/" class="secondary-btn small-btn inventory-link">Back to POS</a>
+        </div>
+      </header>
+
+      <main>
+        <section class="card dish-report-card" aria-labelledby="dailyReportTitle">
+          <div class="dish-report-toolbar">
+            <div>
+              <p class="eyebrow dark">Daily comparison</p>
+              <h2 id="dailyReportTitle">Sales vs. dish costs</h2>
+            </div>
+            <form id="dishDateForm" class="dish-date-form">
+              <label for="dishCostDate">Business date</label>
+              <input id="dishCostDate" name="date" type="date" required />
+              <button class="primary-btn small-btn" type="submit">Load date</button>
+            </form>
+          </div>
+
+          <div class="dish-summary-grid" aria-live="polite">
+            <article class="dish-summary-item"><span>Daily earnings</span><strong id="dailyEarnings">₱0.00</strong><small id="dailySaleCount">0 completed sales</small></article>
+            <article class="dish-summary-item"><span>Total dish costs</span><strong id="dailyDishCosts">₱0.00</strong><small>Recorded for selected date</small></article>
+            <article class="dish-summary-item dish-summary-emphasis"><span>Earnings after dish costs</span><strong id="earningsAfterCosts">₱0.00</strong><small>Before other business expenses</small></article>
+          </div>
+          <p id="dishCostStatus" class="form-notice" role="status" aria-live="polite"></p>
+        </section>
+
+        <div class="dish-inventory-grid">
+          <section class="card inventory-editor" aria-labelledby="addDishTitle">
+            <div class="section-header compact-header">
+              <h2 id="addDishTitle">Record dish cost</h2>
+            </div>
+            <form id="dishCostForm" class="modal-form dish-cost-form">
+              <label>
+                Select a saved dish
+                <select id="savedDishSelect">
+                  <option value="">Enter a new dish</option>
+                </select>
+              </label>
+              <label>
+                Dish name
+                <input id="dishName" name="dish" type="text" maxlength="80" placeholder="Chicken adobo" required />
+              </label>
+              <label>
+                Total cost for this dish
+                <span class="money-input"><b>₱</b><input id="dishTotalCost" name="totalCost" type="number" min="0" max="9999999999.99" step="0.01" placeholder="0.00" required /></span>
+              </label>
+              <p class="dish-date-note">This entry will be recorded for <strong id="dishEntryDate"></strong>.</p>
+              <label class="save-dish-option"><input id="saveDishToCatalog" name="saveToCatalog" type="checkbox" /> Save or update this dish in the reusable list</label>
+              <button id="saveDishCostButton" class="primary-btn small-btn" type="submit">Add dish cost</button>
+            </form>
+          </section>
+
+          <section class="card inventory-list-card" aria-labelledby="dishEntriesTitle">
+            <div class="dish-list-heading">
+              <div class="section-header compact-header">
+                <h2 id="dishEntriesTitle">Dishes for selected date</h2>
+              </div>
+              <strong id="dishEntryCount">0 entries</strong>
+            </div>
+            <div class="dish-cost-table-wrap">
+              <table class="dish-cost-table">
+                <thead>
+                  <tr><th scope="col">Dish</th><th scope="col">Total cost</th><th scope="col">Action</th></tr>
+                </thead>
+                <tbody id="dishCostRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <p class="dish-cost-disclaimer">The comparison uses completed sales and the dish costs entered for the selected date. It does not include labor, utilities, rent, or other expenses.</p>
+      </main>
+    </div>
+
+    <script src="/inventory.js"></script>
+  </body>
+</html>

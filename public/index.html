@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#173a35" />
+    <title>Gelo's Buffet and Events Place | Buffet Service</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Gelo's Buffet and Events Place home">
+          <span class="brand-mark" aria-hidden="true">GB</span>
+          <span><strong>Gelo's Buffet</strong><small>AND EVENTS PLACE</small></span>
+        </a>
+        <div class="service-heading"><span class="live-dot"></span><span>Lunch service</span><span class="divider">/</span><time id="serviceClock"></time></div>
+        <nav class="top-actions" aria-label="Main navigation">
+          <button class="nav-tab active" data-view="service" type="button">Service floor</button>
+          <button class="nav-tab" data-view="sales" type="button">Sales &amp; Database</button>
+          <button class="nav-tab" data-view="manager" type="button">Manager</button>
+          <a class="inventory-link" href="/inventory.html">Dish cost inventory <span aria-hidden="true">↗</span></a>
+        </nav>
+      </header>
+
+      <main>
+        <section id="serviceView" class="view active" aria-labelledby="pageTitle">
+          <div class="page-intro">
+            <div><p class="eyebrow">Service date <span class="today-label" id="todayLabel"></span></p><h1 id="pageTitle">Service at a glance</h1></div>
+            <button id="openCheckin" class="button primary" type="button"><span aria-hidden="true">＋</span> Seat a party</button>
+          </div>
+
+          <section class="metrics" aria-label="Service metrics">
+            <article class="metric"><span class="metric-icon diners-icon" aria-hidden="true">♙</span><div><span>Dining now</span><strong id="dinersMetric">0</strong><small id="partyMetric">Across 0 tables</small></div></article>
+            <article class="metric"><span class="metric-icon clean-icon" aria-hidden="true">◉</span><div><span>Clean plates ready</span><strong id="cleanMetric">0</strong><small id="plateCapacityMetric">of 0 in opening stock</small></div></article>
+            <article class="metric"><span class="metric-icon wash-icon" aria-hidden="true">↻</span><div><span>In dishwashing</span><strong id="dirtyMetric">0</strong><small>Plates waiting to turn</small></div></article>
+            <article class="metric"><span class="metric-icon turn-icon" aria-hidden="true">⇄</span><div><span>Plate turnover</span><strong id="turnoverMetric">0<span class="metric-unit">/hr</span></strong><small>Returned in the last hour</small></div></article>
+            <article class="metric"><span class="metric-icon clean-icon" aria-hidden="true">₱</span><div><span>All-time earnings</span><strong id="earningsMetric">₱0.00</strong><small>From completed sales</small></div></article>
+            <article class="metric"><span class="metric-icon diners-icon" aria-hidden="true">♙</span><div><span>Guests served</span><strong id="guestsServedMetric">0</strong><small id="salesCountMetric">Across 0 completed sales</small></div></article>
+          </section>
+
+          <div id="stockWarning" class="stock-warning hidden" role="status"><strong>Plate stock is running low</strong><span id="stockWarningText"></span></div>
+
+          <div class="service-grid">
+            <section class="panel tables-panel" aria-labelledby="tablesTitle">
+              <div class="panel-heading"><div><p class="eyebrow">Dining room</p><h2 id="tablesTitle">Tables <span id="tableCountLabel"></span></h2></div><div class="table-legend"><span><i class="legend-dot available"></i>Available</span><span><i class="legend-dot occupied"></i>Occupied</span></div></div>
+              <div id="tableGrid" class="table-grid" aria-live="polite"></div>
+            </section>
+
+            <aside class="panel plate-panel" aria-labelledby="plateTitle">
+              <div class="panel-heading"><div><p class="eyebrow">Plate logistics</p><h2 id="plateTitle">Clean stock</h2></div><button id="openPlateActions" class="icon-button" type="button" aria-label="Manage clean plates" title="Add, remove, or edit clean plates">＋</button></div>
+              <div class="stock-count"><strong id="stockCount">0</strong><span>available now</span></div>
+              <div class="stock-progress"><div id="stockProgress" class="stock-progress-fill"></div></div>
+              <div class="stock-captions"><span>Opening pool <strong id="openingStock">0</strong></span><label>Alert at <input id="thresholdInput" type="number" min="1" max="100" step="1" aria-label="Low stock warning threshold percentage" />%</label></div>
+              <div class="plate-split"><div><span>In use</span><strong id="inUseCount">0</strong></div><div class="dishwashing-count"><span>In wash</span><div><strong id="inWashCount">0</strong><button id="markCleanButton" class="mark-clean-button" type="button" disabled>Mark clean</button></div></div></div>
+              <div class="panel-divider"></div>
+              <div class="panel-subheading"><h3>Recent plate movement</h3><span>Last 60 min</span></div>
+              <div id="plateActivity" class="activity-list"></div>
+            </aside>
+          </div>
+
+          <section class="panel party-panel" aria-labelledby="partyTitle">
+            <div class="panel-heading"><div><p class="eyebrow">Check-in &amp; billing</p><h2 id="partyTitle">Party details</h2></div><span id="selectionStatus" class="selection-hint">Select a table to get started</span></div>
+            <div class="party-workspace">
+              <div id="partyEmpty" class="party-empty"><span class="empty-symbol" aria-hidden="true">⌑</span><div><strong>No table selected</strong><p>Choose an open table above or start a new check-in.</p></div></div>
+              <div id="checkinForm" class="checkin-form hidden">
+                <div class="checkin-fields">
+                  <label class="field-label">Table<select id="tableSelect"></select></label>
+                  <label class="field-label">Adults<div class="number-field"><button type="button" data-step="adults" data-delta="-1" aria-label="Remove one adult">−</button><input id="adultInput" type="number" min="0" max="20" value="2" /><button type="button" data-step="adults" data-delta="1" aria-label="Add one adult">+</button></div></label>
+                  <label class="field-label">Senior / PWD<div class="number-field"><button type="button" data-step="senior" data-delta="-1" aria-label="Remove one senior">−</button><input id="seniorInput" type="number" min="0" value="0" /><button type="button" data-step="senior" data-delta="1" aria-label="Add one senior">+</button></div></label>
+                  <label class="field-label">Kids 3–4 ft<div class="number-field"><button type="button" data-step="children" data-delta="-1" aria-label="Remove one child">−</button><input id="childInput" type="number" min="0" max="20" value="0" /><button type="button" data-step="children" data-delta="1" aria-label="Add one child">+</button></div></label>
+                  <label class="field-label">Kids below 3 ft<div class="number-field"><button type="button" data-step="freeChildren" data-delta="-1" aria-label="Remove one free child">−</button><input id="freeChildInput" type="number" min="0" value="0" /><button type="button" data-step="freeChildren" data-delta="1" aria-label="Add one free child">+</button></div></label>
+                </div>
+                <p id="checkinNotice" class="form-notice" aria-live="polite"></p>
+                <button id="checkinButton" class="button primary checkin-button" type="button">Check in &amp; assign plates</button>
+              </div>
+              <div id="activeParty" class="active-party hidden">
+                <div class="active-party-info"><span id="activeTable" class="table-tag"></span><div><strong id="activePax"></strong><span id="activePlates"></span></div></div>
+                <div class="active-party-actions"><div class="plate-adjust"><input id="plateAdjustQty" type="number" min="1" value="1" aria-label="Number of plates to distribute or bus" /><button id="distributePlates" class="button subtle" type="button">Distribute plates</button><button id="busPlates" class="button subtle" type="button">Bus plates</button></div><div class="plate-adjust"><label class="visually-hidden" for="partyPlateCount">Assigned plate count</label><input id="partyPlateCount" type="number" min="0" step="1" required aria-label="Assigned plate count" /><button id="setPartyPlates" class="button subtle" type="button">Update plate count</button></div><div class="party-ending-actions"><button id="releasePartyButton" class="button subtle" type="button">Make table available</button><button id="checkoutButton" class="button primary" type="button">Review bill <span aria-hidden="true">→</span></button></div></div>
+              </div>
+              <div id="estimatePanel" class="estimate-panel hidden">
+                <div class="estimate-heading"><div><span class="eyebrow">Live estimate</span><strong id="estimatePax">2 guests</strong></div><strong id="estimateTotal" class="estimate-total">₱0.00</strong></div>
+                <div id="promoChips" class="promo-chips" aria-label="Quick promos"></div>
+                <label class="discount-slider-label" for="customDiscount"><span>Manual discount</span><output id="discountOutput" for="customDiscount">0%</output></label>
+                <input id="customDiscount" class="discount-slider" type="range" min="0" max="50" value="0" />
+                <div class="estimate-lines"><span>Subtotal <strong id="estimateSubtotal">₱0.00</strong></span><span>Discount <strong id="estimateDiscount">−₱0.00</strong></span></div>
+              </div>
+            </div>
+          </section>
+          <section id="lastReceipt" class="panel last-receipt hidden" aria-live="polite" aria-label="Last completed payment"></section>
+        </section>
+
+        <section id="managerView" class="view" aria-labelledby="managerTitle">
+          <div class="page-intro"><div><p class="eyebrow">Service controls</p><h1 id="managerTitle">Manager configuration</h1></div><button class="button subtle back-to-floor" type="button">← Back to service</button></div>
+          <div class="manager-grid">
+            <section class="panel config-panel"><div class="panel-heading"><div><p class="eyebrow">Buffet pricing</p><h2>Price per guest</h2></div><span class="config-tag">Live changes</span></div>
+              <form id="pricingForm" class="pricing-form">
+                <label class="field-label">Adult buffet rate<span class="money-input"><b>₱</b><input name="adultPrice" type="number" min="0" step="0.01" required /></span></label>
+                <label class="field-label">Senior / PWD rate<span class="money-input"><b>₱</b><input name="seniorPrice" type="number" min="0" step="0.01" required /></span></label>
+                <label class="field-label">Kids (3–4 ft) rate<span class="money-input"><b>₱</b><input name="childPrice" type="number" min="0" step="0.01" required /></span></label>
+                <label class="field-label">Free height cutoff (ft)<span class="suffix-input"><input name="childFreeHeightFt" type="number" min="0" max="10" step="0.1" required /><b>ft</b></span></label>
+                <label class="field-label">Weekend surcharge<span class="suffix-input"><input name="weekendSurcharge" type="number" min="0" max="100" step="0.5" required /><b>%</b></span></label>
+                <div class="form-footer"><span id="pricingStatus" aria-live="polite">Pricing changes apply immediately.</span><button class="button primary" type="submit">Save pricing</button></div>
+              </form>
+            </section>
+            <section class="panel promo-panel"><div class="panel-heading"><div><p class="eyebrow">Promotions</p><h2>Discount rules</h2></div><span id="promoCount" class="config-tag"></span></div>
+              <form id="promoForm" class="promo-form">
+                <label class="field-label">Promo name<input name="name" type="text" maxlength="40" placeholder="Happy hour" required /></label>
+                <label class="field-label">Promo code<input name="code" type="text" maxlength="16" placeholder="HAPPY15" required /></label>
+                <div class="promo-form-row"><label class="field-label">Rule type<select name="type"><option value="percentage">Percentage off</option><option value="fixed">Fixed amount off</option></select></label><label class="field-label">Value<input name="value" type="number" min="0" step="0.01" value="10" required /></label></div>
+                <div class="promo-form-row"><label class="field-label">Applies to<select name="appliesTo"><option value="subtotal">Entire bill</option><option value="adults">Adults</option></select></label><label class="field-label" id="conditionLabel">Minimum guests<input name="minPax" type="number" min="1" value="10" /></label></div>
+                <button class="button subtle add-promo-button" type="submit">＋ Add promotion</button>
+              </form>
+              <div id="promoList" class="promo-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="salesView" class="view" aria-labelledby="salesTitle">
+          <div class="page-intro">
+            <div><p class="eyebrow">MariaDB sales records</p><h1 id="salesTitle">Sales &amp; Database</h1></div>
+            <button id="refreshSalesButton" class="button subtle" type="button">↻ Refresh records</button>
+          </div>
+          <section class="metrics sales-metrics" aria-label="Filtered sales totals">
+            <article class="metric"><span class="metric-icon clean-icon" aria-hidden="true">₱</span><div><span>Earnings</span><strong id="salesEarningsMetric">₱0.00</strong><small>For selected filters</small></div></article>
+            <article class="metric"><span class="metric-icon diners-icon" aria-hidden="true">▤</span><div><span>Completed sales</span><strong id="salesCountValue">0</strong><small>Matching records</small></div></article>
+            <article class="metric"><span class="metric-icon wash-icon" aria-hidden="true">♙</span><div><span>Guests served</span><strong id="salesGuestsMetric">0</strong><small>Across matching sales</small></div></article>
+          </section>
+          <section class="panel sales-panel" aria-label="Search and filter sales">
+            <form id="salesFilterForm" class="sales-filters">
+              <label class="field-label sales-search-field">Search<input name="search" type="search" maxlength="100" placeholder="Receipt ID, table, or party ID" /></label>
+              <label class="field-label">From date<input name="startDate" type="date" /></label>
+              <label class="field-label">To date<input name="endDate" type="date" /></label>
+              <label class="field-label">Sale type<select name="source"><option value="all">All sales</option><option value="buffet">Buffet</option><option value="menu">Menu</option></select></label>
+              <button class="button primary sales-search-button" type="submit">Search</button>
+            </form>
+            <div class="sales-table-heading"><h2>Completed sales</h2><span id="salesResultsStatus" role="status" aria-live="polite">Loading sales…</span></div>
+            <div class="sales-table-wrap">
+              <table class="sales-table">
+                <thead><tr><th scope="col">Date &amp; time</th><th scope="col">Receipt</th><th scope="col">Type / table</th><th scope="col">Guests</th><th scope="col">Payment</th><th scope="col">Total</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+                <tbody id="salesTableBody"></tbody>
+              </table>
+            </div>
+            <div class="sales-pagination"><button id="salesPreviousButton" class="button subtle" type="button" disabled>← Previous</button><span id="salesPageLabel">Page 0 of 0</span><button id="salesNextButton" class="button subtle" type="button" disabled>Next →</button></div>
+          </section>
+        </section>
+      </main>
+      <footer class="app-footer"><span>Gelo's Buffet and Events Place POS</span><span>Service state syncs with the local POS server</span><span id="connectionStatus"><i class="legend-dot available"></i> Connected</span></footer>
+    </div>
+
+    <div id="plateModal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="plateModalTitle"><div class="modal-backdrop" data-dismiss="plateModal"></div><section class="modal-panel plate-modal-panel"><div class="modal-title"><div><p class="eyebrow">Plate logistics</p><h2 id="plateModalTitle">Adjust clean plates</h2></div><button class="icon-button" type="button" data-dismiss="plateModal" aria-label="Close plate controls">×</button></div><p class="release-copy">Editing the available count changes unassigned clean plates only; plates already in use stay unchanged.</p><div class="plate-modal-grid"><form id="receiveForm"><label class="field-label">Add clean plates<input name="quantity" type="number" min="1" value="24" required /></label><button class="button subtle" type="submit">Record delivery</button></form><form id="removeForm"><label class="field-label">Subtract clean plates<input name="quantity" type="number" min="1" value="1" required /></label><button class="button subtle" type="submit">Remove plates</button></form><form id="setCleanForm"><label class="field-label">Set available clean plates<input name="quantity" type="number" min="0" step="1" required aria-label="Available unassigned clean plate count" /></label><button class="button primary" type="submit">Save clean count</button></form><form id="washForm"><label class="field-label">Wash completed plates<input name="quantity" type="number" min="1" value="10" required /></label><button class="button subtle" type="submit">Return to clean stock</button></form><form id="unavailableForm"><label class="field-label">Mark plates unavailable<input name="quantity" type="number" min="1" value="1" required /></label><label class="field-label">Where are the plates?<select id="unavailableSource" name="source" required><option value="clean">Available clean</option><option value="in-use">In use at a table</option><option value="dishwashing">In dishwashing</option></select></label><div id="unavailablePartyField" class="hidden"><label class="field-label" for="unavailableParty">Table</label><select id="unavailableParty" name="partyId"></select></div><label class="field-label">Reason<input name="reason" type="text" maxlength="120" placeholder="Broken, chipped, missing..." required /></label><button class="button subtle" type="submit">Record unavailable</button></form></div><p id="plateModalNotice" class="form-notice" aria-live="polite"></p></section></div>
+
+    <div id="releaseModal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="releaseTitle"><div class="modal-backdrop" data-dismiss="releaseModal"></div><section class="modal-panel release-modal-panel"><div class="modal-title"><div><p class="eyebrow">Table status</p><h2 id="releaseTitle">Make this table available?</h2></div><button class="icon-button" type="button" data-dismiss="releaseModal" aria-label="Close release confirmation">×</button></div><p class="release-copy">This ends the active seating without recording payment. Any assigned plates will move to dishwashing.</p><div class="checkout-actions"><button class="button subtle" type="button" data-dismiss="releaseModal">Keep occupied</button><button id="confirmRelease" class="button primary" type="button">Release table</button></div></section></div>
+
+    <div id="checkoutModal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle"><div class="modal-backdrop" data-dismiss="checkoutModal"></div><section class="modal-panel checkout-modal-panel"><div class="modal-title"><div><p class="eyebrow">Payment</p><h2 id="checkoutTitle">Review bill</h2></div><button class="icon-button" type="button" data-dismiss="checkoutModal" aria-label="Close checkout">×</button></div><div id="checkoutBreakdown" class="checkout-breakdown"></div><label class="field-label payment-field">Payment method<select id="paymentMethod"><option value="cash">Cash</option><option value="card">Card</option><option value="mobile">Mobile wallet</option></select></label><div class="checkout-actions"><button class="button subtle" type="button" data-dismiss="checkoutModal">Keep table open</button><button id="confirmCheckout" class="button primary" type="button">Complete payment</button></div></section></div>
+    <dialog id="saleDetailDialog" class="sale-detail-dialog" aria-labelledby="saleDetailTitle"><div class="modal-title"><div><p class="eyebrow">Stored sale record</p><h2 id="saleDetailTitle">Sale details</h2></div><button id="closeSaleDetailButton" class="icon-button" type="button" aria-label="Close sale details">×</button></div><div id="saleDetailContent" class="sale-detail-content"></div></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
